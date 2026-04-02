@@ -5,69 +5,111 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PLN <> EUR</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#000000">
+    <meta name="theme-color" content="#121212">
     <link rel="apple-touch-icon" href="poland.png">
     <style>
-        :root { --bg: #ffffff; --text: #1a1a1a; --accent: #0052b4; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); display: flex; justify-content: center; padding: 20px; margin: 0; }
-        .card { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 20px; margin-top: 40px; }
-        .input-group { display: flex; flex-direction: column; gap: 8px; }
-        label { font-weight: bold; font-size: 0.9rem; opacity: 0.7; text-transform: uppercase; }
-        input { border: 2px solid #e0e0e0; border-radius: 12px; padding: 16px; font-size: 2rem; width: 100%; box-sizing: border-box; outline: none; transition: border-color 0.2s; }
+        :root { 
+            --bg: #121212; 
+            --card-bg: #1e1e1e;
+            --text: #e0e0e0; 
+            --accent: #0070f3; 
+            --input-border: #333333;
+        }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            background: var(--bg); 
+            color: var(--text); 
+            display: flex; 
+            justify-content: center; 
+            padding: 20px; 
+            margin: 0; 
+        }
+        .card { 
+            width: 100%; 
+            max-width: 400px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 24px; 
+            margin-top: 40px; 
+        }
+        .input-group { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 10px; 
+        }
+        label { 
+            font-weight: bold; 
+            font-size: 1rem; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px;
+            color: #888;
+        }
+        .flag { font-size: 1.4rem; }
+        input { 
+            background: var(--card-bg);
+            border: 2px solid var(--input-border);
+            border-radius: 16px; 
+            padding: 20px; 
+            font-size: 2.2rem; 
+            width: 100%; 
+            box-sizing: border-box; 
+            outline: none; 
+            color: #ffffff;
+            transition: border-color 0.2s; 
+        }
         input:focus { border-color: var(--accent); }
-        .status { font-size: 0.8rem; text-align: center; opacity: 0.5; margin-top: 10px; }
+        .status { 
+            font-size: 0.85rem; 
+            text-align: center; 
+            color: #666; 
+            margin-top: 20px; 
+        }
     </style>
 </head>
 <body>
 
 <div class="card">
     <div class="input-group">
-        <label>Euro (EUR)</label>
-        <input type="text" id="eur" inputmode="decimal" placeholder="0.00">
-    </div>
-    <div class="input-group">
-        <label>Polish Zloty (PLN)</label>
+        <label><span class="flag">🇵🇱</span> Polish Zloty (PLN)</label>
         <input type="text" id="pln" inputmode="decimal" placeholder="0.00">
     </div>
-    <div id="status" class="status">Checking rate...</div>
+
+    <div class="input-group">
+        <label><span class="flag">🇪🇺</span> Euro (EUR)</label>
+        <input type="text" id="eur" inputmode="decimal" placeholder="0.00">
+    </div>
+
+    <div id="status" class="status">Syncing...</div>
 </div>
 
 <script>
     const eurInput = document.getElementById('eur');
     const plnInput = document.getElementById('pln');
     const statusDiv = document.getElementById('status');
-    let rate = localStorage.getItem('eur_to_pln') || 4.30; // Fallback rate
+    let rate = localStorage.getItem('eur_to_pln') || 4.30;
 
-    // Initialize UI
-    statusDiv.innerText = `Rate: 1 EUR = ${rate} PLN (Stored)`;
+    statusDiv.innerText = `Rate: 1 EUR = ${rate} PLN`;
 
-    // Fetch latest rate from Frankfurter API
     async function updateRate() {
         try {
             const res = await fetch('https://api.frankfurter.app/latest?from=EUR&to=PLN');
             const data = await res.json();
             rate = data.rates.PLN;
             localStorage.setItem('eur_to_pln', rate);
-            statusDiv.innerText = `Rate: 1 EUR = ${rate} PLN (Live)`;
+            statusDiv.innerText = `Rate: 1 EUR = ${rate} PLN (Updated)`;
         } catch (e) {
-            statusDiv.innerText = `Offline: Using rate 1 EUR = ${rate} PLN`;
+            statusDiv.innerText = `Offline: Using cached rate (${rate})`;
         }
     }
 
     updateRate();
 
-    // Logic for instant conversion
-    eurInput.addEventListener('input', () => {
-        const val = parseFloat(eurInput.value.replace(',', '.'));
-        if (!isNaN(val)) {
-            plnInput.value = (val * rate).toFixed(2);
-        } else {
-            plnInput.value = '';
-        }
-    });
+    // Helper to handle both dots and commas for European inputs
+    const parseInput = (val) => parseFloat(val.replace(',', '.'));
 
     plnInput.addEventListener('input', () => {
-        const val = parseFloat(plnInput.value.replace(',', '.'));
+        const val = parseInput(plnInput.value);
         if (!isNaN(val)) {
             eurInput.value = (val / rate).toFixed(2);
         } else {
@@ -75,7 +117,15 @@
         }
     });
 
-    // Register Service Worker for PWA/Offline
+    eurInput.addEventListener('input', () => {
+        const val = parseInput(eurInput.value);
+        if (!isNaN(val)) {
+            plnInput.value = (val * rate).toFixed(2);
+        } else {
+            plnInput.value = '';
+        }
+    });
+
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js');
     }

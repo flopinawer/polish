@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shift Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <link rel="manifest" href="manifest.json"> <style>
+        body { background-color: #f3f4f6; }
+        .unknown-shift { border: 2px solid #ef4444; }
+    </style>
+</head>
+<body class="text-gray-800 font-sans p-4 md:p-8 max-w-4xl mx-auto">
+
+    <header class="bg-white rounded-xl shadow-sm p-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-indigo-600">Shift Dashboard</h1>
+            <p class="text-sm text-gray-500">Track your shifts and team</p>
+        </div>
+        
+        <div class="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+            <select id="userSelect" class="bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2.5 focus:ring-indigo-500 focus:border-indigo-500 w-full">
+                <option value="">Cargando usuarios...</option>
+            </select>
+            <input type="date" id="dateSelect" class="bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2.5 focus:ring-indigo-500 focus:border-indigo-500 w-full">
+        </div>
+    </header>
+
+    <div id="alertBanner" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
+        <p id="alertText"></p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="dashboardContent">
+        
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-bold text-gray-700 mb-2">Mi Turno Hoy</h2>
+            <div class="text-5xl font-extrabold text-indigo-600 mb-4" id="todayShift">-</div>
+            <p class="text-gray-600">Días hasta próximo descanso (<span class="font-bold">L, V, F</span>):</p>
+            <p class="text-2xl font-bold text-emerald-500 mt-1" id="daysUntilOff">-</p>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-bold text-gray-700 mb-4">Horas Calculadas</h2>
+            <div class="flex justify-between items-center mb-4 pb-4 border-b">
+                <span class="text-gray-600">Esta Semana</span>
+                <span class="text-2xl font-bold text-indigo-600" id="weeklyHours">0h</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600">Este Mes</span>
+                <span class="text-2xl font-bold text-indigo-600" id="monthlyHours">0h</span>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-bold text-gray-700 mb-4">Mi Equipo (Compañeros)</h2>
+            <div class="mb-4">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase">Mismo Turno (<span id="sameShiftLabel">-</span>)</h3>
+                <ul class="mt-2 text-gray-800 list-disc pl-5" id="sameShiftList"></ul>
+            </div>
+            <div>
+                <h3 class="text-sm font-semibold text-gray-500 uppercase">Turno Opuesto (Posible Swap)</h3>
+                <ul class="mt-2 text-gray-800 list-disc pl-5" id="oppShiftList"></ul>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-bold text-gray-700 mb-4">Otros Estados</h2>
+            <div class="mb-4">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase">Noches (N)</h3>
+                <ul class="mt-2 text-gray-800 list-disc pl-5" id="nightShiftList"></ul>
+            </div>
+            <div>
+                <h3 class="text-sm font-semibold text-gray-500 uppercase">Libres / Vacaciones</h3>
+                <ul class="mt-2 text-gray-800 list-disc pl-5" id="offList"></ul>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let scheduleData = {}; 
+        // Example structure: { "IVANA SAN": { "2026-09-01": "T", "2026-09-02": "T" } }
+        let datesList = [];
+
+        // DOM Elements
+        const userSelect = document.getElementById('userSelect');
+        const dateSelect = document.getElementById('dateSelect');
+        
+        // Initialize App
+        async function initApp() {
+            try {
+                const response = await fetch('./schedule.csv');
+                if (!response.ok) throw new Error("No se pudo cargar schedule.csv");
+                const csvText = await response.text();
+                
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        processData(results.data);
+                        setupUI();
+                    }
+                });
+            } catch (error) {
+                showAlert("Error: Asegúrate de que 'schedule.csv' existe en la misma carpeta que este archivo HTML.");
+                console.error(error);
+            }
+        }
+
+        // Process CSV into usable JSON structure
+        function processData(rows) {
+            if (rows.length === 0) return;
+            
+            // Extract dates from headers (skipping the "NOMBRE" column)
+            const headers = Object.keys(rows[0]);
+            datesList = headers.filter(h => h.toUpperCase() !== 'NOMBRE');
+
+            rows.forEach(row => {
+                const nameKey = row['NOMBRE'] || row['nombre'];
+                if (!nameKey) return;
+                
+                scheduleData[nameKey] = {};
+                datesList.forEach(date => {
+                    scheduleData[nameKey][date] = row[date] ? row[date].trim().toUpperCase() : '';
+                });
+            });
+        }
+
+        function setupUI() {
+            // Populate Users
+            userSelect.innerHTML = '';
+            Object.keys(scheduleData).forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                userSelect.appendChild(opt);
+            });
+
+            // Set Default User
+            const savedUser = localStorage.getItem('defaultUser');
+            if (savedUser && scheduleData[savedUser]) {
+                userSelect.value = savedUser;
+            } else {
+                // Default to Ivana if available, else first user
+                const defaultName = Object.keys(scheduleData).find(n => n.includes("IVANA")) || Object.keys(scheduleData)[0];
+                userSelect.value = defaultName;
+            }
+
+            // Set Default Date to Today (or first available date if today is outside schedule)
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (datesList.includes(todayStr)) {
+                dateSelect.value = todayStr;
+            } else {
+                dateSelect.value = datesList[0];
+            }
+
+            // Event Listeners
+            userSelect.addEventListener('change', (e) => {
+                localStorage.setItem('defaultUser', e.target.value);
+                updateDashboard();
+            });
+            dateSelect.addEventListener('change', updateDashboard);
+
+            updateDashboard();
+        }
+
+        // Shift Logic Calculation
+        function getShiftHours(shiftCode, prevShiftCode) {
+            if (['M', 'T'].includes(shiftCode)) return 7;
+            if (shiftCode === 'MD') return 11;
+            
+            if (shiftCode === 'N') {
+                let hrs = 2; // evening hours
+                if (prevShiftCode === 'N') hrs += 8; // Morning from prev night
+                return hrs;
+            }
+            if (shiftCode === 'S') {
+                return (prevShiftCode === 'N') ? 8 : 8; // Saliente is 8h from prev night
+            }
+            // L, V, F, or unknown codes
+            return 0;
+        }
+
+        function getShiftCode(user, dateStr) {
+            return scheduleData[user] ? scheduleData[user][dateStr] : null;
+        }
+
+        function updateDashboard() {
+            const user = userSelect.value;
+            const dateStr = dateSelect.value;
+            if (!user || !dateStr) return;
+
+            const shiftToday = getShiftCode(user, dateStr) || '-';
+            
+            // 1. Update Today's Shift Card
+            const shiftEl = document.getElementById('todayShift');
+            shiftEl.textContent = shiftToday;
+            
+            // Flag unknowns
+            const knownShifts = ['M', 'T', 'N', 'MD', 'S', 'L', 'V', 'F'];
+            if (shiftToday !== '-' && !knownShifts.includes(shiftToday)) {
+                shiftEl.classList.add('text-red-500');
+                showAlert(`Aviso: El turno "${shiftToday}" no está configurado en la lógica de horas y sumará 0h.`);
+            } else {
+                shiftEl.classList.remove('text-red-500');
+                hideAlert();
+            }
+
+            // 2. Calculate Days Until Off
+            let daysUntilOff = 0;
+            let dateIdx = datesList.indexOf(dateStr) + 1;
+            let foundOff = false;
+
+            while (dateIdx < datesList.length) {
+                daysUntilOff++;
+                const futureShift = getShiftCode(user, datesList[dateIdx]);
+                if (['L', 'V', 'F'].includes(futureShift)) {
+                    foundOff = true;
+                    break;
+                }
+                dateIdx++;
+            }
+            document.getElementById('daysUntilOff').textContent = foundOff ? daysUntilOff : '+ (fin de datos)';
+
+            // 3. Calculate Hours (Week & Month)
+            calculateHoursUI(user, dateStr);
+
+            // 4. Update Teams List
+            updateTeamsUI(user, dateStr, shiftToday);
+        }
+
+        function calculateHoursUI(user, dateStr) {
+            const selectedDate = new Date(dateStr);
+            const month = selectedDate.getMonth();
+            const year = selectedDate.getFullYear();
+
+            // Find start of week (Monday)
+            const dayOfWeek = selectedDate.getDay(); 
+            const diffToMonday = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+            const startOfWeek = new Date(selectedDate.setDate(diffToMonday));
+            
+            let weeklyHours = 0;
+            let monthlyHours = 0;
+
+            datesList.forEach(dStr => {
+                const d = new Date(dStr);
+                const shiftCode = getShiftCode(user, dStr);
+                
+                // Get previous day for N logic
+                const prevD = new Date(d);
+                prevD.setDate(prevD.getDate() - 1);
+                const prevDateStr = prevD.toISOString().split('T')[0];
+                const prevShiftCode = getShiftCode(user, prevDateStr);
+
+                const hours = getShiftHours(shiftCode, prevShiftCode);
+
+                // Check Monthly
+                if (d.getMonth() === month && d.getFullYear() === year) {
+                    monthlyHours += hours;
+                }
+
+                // Check Weekly (within 6 days from Monday)
+                const timeDiff = d.getTime() - startOfWeek.getTime();
+                const daysDiff = timeDiff / (1000 * 3600 * 24);
+                if (daysDiff >= 0 && daysDiff <= 6) {
+                    weeklyHours += hours;
+                }
+            });
+
+            document.getElementById('weeklyHours').textContent = `${weeklyHours}h`;
+            document.getElementById('monthlyHours').textContent = `${monthlyHours}h`;
+        }
+
+        function updateTeamsUI(user, dateStr, myShift) {
+            const sameList = document.getElementById('sameShiftList');
+            const oppList = document.getElementById('oppShiftList');
+            const nightList = document.getElementById('nightShiftList');
+            const offList = document.getElementById('offList');
+
+            sameList.innerHTML = ''; oppList.innerHTML = ''; nightList.innerHTML = ''; offList.innerHTML = '';
+            document.getElementById('sameShiftLabel').textContent = myShift;
+
+            let oppositeCode = myShift === 'M' ? 'T' : (myShift === 'T' ? 'M' : 'N/A');
+
+            Object.keys(scheduleData).forEach(colleague => {
+                if (colleague === user) return;
+                
+                const cShift = getShiftCode(colleague, dateStr);
+                const li = `<li>${colleague} <span class="text-xs text-gray-400">(${cShift})</span></li>`;
+
+                if (cShift === myShift) sameList.innerHTML += li;
+                else if (cShift === oppositeCode) oppList.innerHTML += li;
+                
+                if (cShift === 'N') nightList.innerHTML += li;
+                if (['L', 'V', 'F', 'S'].includes(cShift)) offList.innerHTML += li;
+            });
+
+            if (sameList.innerHTML === '') sameList.innerHTML = '<li class="text-gray-400 text-sm">Nadie</li>';
+            if (oppList.innerHTML === '') oppList.innerHTML = '<li class="text-gray-400 text-sm">Nadie / No Aplica</li>';
+            if (nightList.innerHTML === '') nightList.innerHTML = '<li class="text-gray-400 text-sm">Nadie</li>';
+            if (offList.innerHTML === '') offList.innerHTML = '<li class="text-gray-400 text-sm">Nadie</li>';
+        }
+
+        function showAlert(msg) {
+            document.getElementById('alertBanner').classList.remove('hidden');
+            document.getElementById('alertText').textContent = msg;
+        }
+        function hideAlert() {
+            document.getElementById('alertBanner').classList.add('hidden');
+        }
+
+        // Boot
+        window.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>

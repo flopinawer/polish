@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#faf9f7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
+    <title>Shift Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <link rel="manifest" href="manifest.json">
+    <script>
+        tailwind.config = {
+            darkMode: 'media',
+            theme: {
+                extend: {
+                    colors: {
+                        shift: {
+                            m: '#f59e0b',
+                            t: '#3b82f6',
+                            n: '#8b5cf6',
+                            md: '#f97316',
+                            s: '#f43f5e',
+                            off: '#10b981',
+                            unknown: '#ef4444'
+                        },
+                        ios: {
+                            bg: '#faf9f7',
+                            card: '#ffffff',
+                            darkbg: '#1c1c1e',
+                            darkcard: '#2c2c2e',
+                            separator: '#e5e5ea',
+                            darksep: '#38383a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            user-select: none;
+        }
+
+        input, select, textarea {
+            user-select: auto;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #faf9f7;
+            overscroll-behavior-y: none;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #1c1c1e;
+                color: #ffffff;
+            }
+        }
+
+        .safe-top {
+            padding-top: env(safe-area-inset-top, 0px);
+        }
+
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(0,0,0,0.04);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .card {
+                background: rgba(44, 44, 46, 0.85);
+                border: 1px solid rgba(255,255,255,0.06);
+            }
+        }
+
+        .shift-hero {
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .countdown-dot {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .countdown-dot.active {
+            transform: scale(1.2);
+        }
+
+        .hours-bar-fill {
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .team-row {
+            transition: transform 0.15s ease, background-color 0.15s ease;
+        }
+
+        .team-row:active {
+            transform: scale(0.98);
+            background-color: rgba(0,0,0,0.03);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .team-row:active {
+                background-color: rgba(255,255,255,0.05);
+            }
+        }
+
+        .number-ticker {
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .chip-scroll {
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+
+        .chip-scroll::-webkit-scrollbar {
+            display: none;
+        }
+
+        .ios-select {
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 32px;
+        }
+
+        .toast-enter {
+            animation: toastSlide 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .toast-exit {
+            animation: toastSlideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes toastSlide {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes toastSlideOut {
+            from { transform: translateY(0); opacity: 1; }
+            to { transform: translateY(-100%); opacity: 0; }
+        }
+
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .pulse-soft {
+            animation: pulse-soft 2s ease-in-out infinite;
+        }
+
+        .stagger-in {
+            animation: staggerIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            opacity: 0;
+        }
+
+        @keyframes staggerIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .glass-header {
+            background: rgba(250, 249, 247, 0.92);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .glass-header {
+                background: rgba(28, 28, 30, 0.92);
+                border-bottom: 1px solid rgba(255,255,255,0.06);
+            }
+        }
+
+        .progress-segment {
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+<base target="_blank">
+</head>
+<body class="text-gray-900 dark:text-white min-h-screen safe-bottom">
+
+    <!-- Sticky Header -->
+    <header class="glass-header fixed top-0 left-0 right-0 z-50 safe-top">
+        <div class="max-w-lg mx-auto px-5 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold tracking-tight leading-tight">Shift Dashboard</h1>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400 leading-tight">Tu turno, tu equipo</p>
+                </div>
+            </div>
+            <button id="todayBtn" class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-full active:scale-95 transition-transform">
+                Hoy
+            </button>
+        </div>
+    </header>
+
+    <!-- Toast Alert -->
+    <div id="alertBanner" class="fixed top-[calc(env(safe-area-inset-top)+60px)] left-4 right-4 z-40 hidden">
+        <div class="bg-red-500/95 backdrop-blur-md text-white px-4 py-3 rounded-2xl shadow-xl shadow-red-500/20 flex items-center gap-3">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <p id="alertText" class="text-sm font-medium"></p>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="max-w-lg mx-auto px-5 pt-[calc(env(safe-area-inset-top)+72px)] pb-8 space-y-5">
+
+        <!-- Controls -->
+        <div class="flex gap-3 stagger-in" style="animation-delay: 0.05s">
+            <div class="flex-1 relative">
+                <select id="userSelect" class="ios-select w-full bg-white dark:bg-ios-darkcard border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all">
+                    <option value="">Cargando usuarios...</option>
+                </select>
+            </div>
+            <div class="flex-1 relative">
+                <input type="date" id="dateSelect" class="w-full bg-white dark:bg-ios-darkcard border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all">
+            </div>
+        </div>
+
+        <!-- Hero Shift Card -->
+        <div id="heroCard" class="card rounded-3xl p-6 relative overflow-hidden stagger-in" style="animation-delay: 0.1s">
+            <div id="heroGlow" class="absolute -top-20 -right-20 w-40 h-40 rounded-full opacity-20 blur-3xl transition-all duration-700"></div>
+
+            <div class="relative z-10">
+                <div class="flex items-center justify-between mb-4">
+                    <span class="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">Mi Turno</span>
+                    <span id="shiftBadge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 dark:bg-gray-700 transition-colors duration-300">-</span>
+                </div>
+
+                <div class="flex items-baseline gap-2 mb-2">
+                    <span id="todayShift" class="text-8xl font-black tracking-tighter leading-none transition-all duration-500">-</span>
+                </div>
+
+                <p id="shiftLabel" class="text-sm font-medium text-gray-600 dark:text-gray-300 mb-6">Cargando...</p>
+
+                <!-- Days Until Rest Visual -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Próximo descanso</span>
+                        <span id="daysUntilOff" class="text-sm font-bold text-emerald-500">-</span>
+                    </div>
+                    <div id="countdownDots" class="flex gap-2">
+                        <!-- Dots injected by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hours Section -->
+        <div class="grid grid-cols-2 gap-4 stagger-in" style="animation-delay: 0.15s">
+            <!-- Weekly -->
+            <div class="card rounded-3xl p-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Semana</span>
+                </div>
+                <div class="flex items-baseline gap-1 mb-3">
+                    <span id="weeklyHours" class="text-3xl font-black tracking-tight">0</span>
+                    <span class="text-sm font-medium text-gray-400">h</span>
+                </div>
+                <!-- Weekly Progress Bar -->
+                <div class="flex gap-1 h-1.5">
+                    <div class="flex-1 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                        <div id="weeklyBar" class="h-full bg-blue-500 rounded-full hours-bar-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <p class="text-[10px] text-gray-400 mt-2 font-medium">Meta: ~40h</p>
+            </div>
+
+            <!-- Monthly -->
+            <div class="card rounded-3xl p-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-8 h-8 rounded-xl bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
+                    </div>
+                    <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Mes</span>
+                </div>
+                <div class="flex items-baseline gap-1 mb-3">
+                    <span id="monthlyHours" class="text-3xl font-black tracking-tight">0</span>
+                    <span class="text-sm font-medium text-gray-400">h</span>
+                </div>
+                <!-- Monthly Progress Bar -->
+                <div class="flex gap-1 h-1.5">
+                    <div class="flex-1 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                        <div id="monthlyBar" class="h-full bg-violet-500 rounded-full hours-bar-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <p class="text-[10px] text-gray-400 mt-2 font-medium">Meta: ~160h</p>
+            </div>
+        </div>
+
+        <!-- Team Section -->
+        <div class="card rounded-3xl overflow-hidden stagger-in" style="animation-delay: 0.2s">
+            <div class="p-5 border-b border-gray-100 dark:border-gray-700">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center">
+                            <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                            </svg>
+                        </div>
+                        <h2 class="text-sm font-bold tracking-tight">Mi Equipo</h2>
+                    </div>
+                    <span id="sameShiftLabel" class="text-xs font-bold px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-700">-</span>
+                </div>
+            </div>
+
+            <!-- Same Shift -->
+            <div class="p-5 border-b border-gray-100 dark:border-gray-700">
+                <h3 class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Mismo Turno</h3>
+                <div id="sameShiftList" class="chip-scroll flex gap-2 overflow-x-auto pb-1">
+                    <!-- Chips injected by JS -->
+                </div>
+            </div>
+
+            <!-- Opposite Shift -->
+            <div class="p-5 border-b border-gray-100 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Turno Opuesto <span class="text-[10px] normal-case opacity-60">(Swap posible)</span></h3>
+                    <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                    </svg>
+                </div>
+                <div id="oppShiftList" class="space-y-1">
+                    <!-- Rows injected by JS -->
+                </div>
+            </div>
+
+            <!-- Night Shift -->
+            <div class="p-5 border-b border-gray-100 dark:border-gray-700">
+                <h3 class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Noches (N)</h3>
+                <div id="nightShiftList" class="space-y-1">
+                    <!-- Rows injected by JS -->
+                </div>
+            </div>
+
+            <!-- Off/Vacation -->
+            <div class="p-5">
+                <h3 class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Libres / Vacaciones</h3>
+                <div id="offList" class="space-y-1">
+                    <!-- Rows injected by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center pt-2 pb-4">
+            <p class="text-[10px] text-gray-400 dark:text-gray-600 font-medium">Shift Dashboard v2.0</p>
+        </div>
+    </main>
+
+    <script>
+        let scheduleData = {};
+        let datesList = [];
+
+        const userSelect = document.getElementById('userSelect');
+        const dateSelect = document.getElementById('dateSelect');
+        const todayBtn = document.getElementById('todayBtn');
+
+        const shiftConfig = {
+            'M': { label: 'Mañana', color: '#f59e0b', bg: 'bg-amber-500', text: 'text-amber-500', light: 'bg-amber-50', dark: 'dark:bg-amber-900/30' },
+            'T': { label: 'Tarde', color: '#3b82f6', bg: 'bg-blue-500', text: 'text-blue-500', light: 'bg-blue-50', dark: 'dark:bg-blue-900/30' },
+            'N': { label: 'Noche', color: '#8b5cf6', bg: 'bg-violet-500', text: 'text-violet-500', light: 'bg-violet-50', dark: 'dark:bg-violet-900/30' },
+            'MD': { label: 'Mañana-Tarde', color: '#f97316', bg: 'bg-orange-500', text: 'text-orange-500', light: 'bg-orange-50', dark: 'dark:bg-orange-900/30' },
+            'S': { label: 'Saliente', color: '#f43f5e', bg: 'bg-rose-500', text: 'text-rose-500', light: 'bg-rose-50', dark: 'dark:bg-rose-900/30' },
+            'L': { label: 'Libre', color: '#10b981', bg: 'bg-emerald-500', text: 'text-emerald-500', light: 'bg-emerald-50', dark: 'dark:bg-emerald-900/30' },
+            'V': { label: 'Vacaciones', color: '#10b981', bg: 'bg-emerald-500', text: 'text-emerald-500', light: 'bg-emerald-50', dark: 'dark:bg-emerald-900/30' },
+            'F': { label: 'Festivo', color: '#10b981', bg: 'bg-emerald-500', text: 'text-emerald-500', light: 'bg-emerald-50', dark: 'dark:bg-emerald-900/30' }
+        };
+
+        async function initApp() {
+            try {
+                const response = await fetch('./schedule.csv');
+                if (!response.ok) throw new Error("No se pudo cargar schedule.csv");
+                const csvText = await response.text();
+
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        processData(results.data);
+                        setupUI();
+                    }
+                });
+            } catch (error) {
+                showAlert("Error: Asegúrate de que 'schedule.csv' existe en la misma carpeta que este archivo HTML.");
+                console.error(error);
+            }
+        }
+
+        function processData(rows) {
+            if (rows.length === 0) return;
+            const headers = Object.keys(rows[0]);
+            datesList = headers.filter(h => h.toUpperCase() !== 'NOMBRE');
+
+            rows.forEach(row => {
+                const nameKey = row['NOMBRE'] || row['nombre'];
+                if (!nameKey) return;
+                scheduleData[nameKey] = {};
+                datesList.forEach(date => {
+                    scheduleData[nameKey][date] = row[date] ? row[date].trim().toUpperCase() : '';
+                });
+            });
+        }
+
+        function setupUI() {
+            userSelect.innerHTML = '';
+            Object.keys(scheduleData).forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                userSelect.appendChild(opt);
+            });
+
+            const savedUser = localStorage.getItem('defaultUser');
+            if (savedUser && scheduleData[savedUser]) {
+                userSelect.value = savedUser;
+            } else {
+                const defaultName = Object.keys(scheduleData).find(n => n.includes("IVANA")) || Object.keys(scheduleData)[0];
+                userSelect.value = defaultName;
+            }
+
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (datesList.includes(todayStr)) {
+                dateSelect.value = todayStr;
+            } else {
+                dateSelect.value = datesList[0];
+            }
+
+            userSelect.addEventListener('change', (e) => {
+                localStorage.setItem('defaultUser', e.target.value);
+                updateDashboard();
+            });
+            dateSelect.addEventListener('change', updateDashboard);
+            todayBtn.addEventListener('click', () => {
+                const todayStr = new Date().toISOString().split('T')[0];
+                if (datesList.includes(todayStr)) {
+                    dateSelect.value = todayStr;
+                    updateDashboard();
+                }
+            });
+
+            updateDashboard();
+        }
+
+        function getShiftHours(shiftCode, prevShiftCode) {
+            if (['M', 'T'].includes(shiftCode)) return 7;
+            if (shiftCode === 'MD') return 11;
+            if (shiftCode === 'N') {
+                let hrs = 2;
+                if (prevShiftCode === 'N') hrs += 8;
+                return hrs;
+            }
+            if (shiftCode === 'S') return 8;
+            return 0;
+        }
+
+        function getShiftCode(user, dateStr) {
+            return scheduleData[user] ? scheduleData[user][dateStr] : null;
+        }
+
+        function getInitials(name) {
+            return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+        }
+
+        function animateValue(id, start, end, duration) {
+            const obj = document.getElementById(id);
+            if (!obj) return;
+            let startTimestamp = null;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const eased = 1 - Math.pow(1 - progress, 3);
+                obj.innerHTML = Math.floor(eased * (end - start) + start);
+                if (progress < 1) {
+                    window.requestAnimationFrame(step);
+                }
+            };
+            window.requestAnimationFrame(step);
+        }
+
+        function updateDashboard() {
+            const user = userSelect.value;
+            const dateStr = dateSelect.value;
+            if (!user || !dateStr) return;
+
+            const shiftToday = getShiftCode(user, dateStr) || '-';
+            const config = shiftConfig[shiftToday] || { label: 'Desconocido', color: '#ef4444', bg: 'bg-red-500', text: 'text-red-500', light: 'bg-red-50', dark: 'dark:bg-red-900/30' };
+
+            // Hero Card
+            const shiftEl = document.getElementById('todayShift');
+            const heroCard = document.getElementById('heroCard');
+            const heroGlow = document.getElementById('heroGlow');
+            const shiftBadge = document.getElementById('shiftBadge');
+            const shiftLabel = document.getElementById('shiftLabel');
+
+            shiftEl.textContent = shiftToday;
+            shiftEl.style.color = config.color;
+            heroGlow.style.backgroundColor = config.color;
+            shiftBadge.textContent = config.label;
+            shiftBadge.className = `px-2.5 py-1 rounded-full text-xs font-bold ${config.light} ${config.dark} ${config.text}`;
+            shiftLabel.textContent = config.label;
+
+            // Alert for unknown shifts
+            const knownShifts = ['M', 'T', 'N', 'MD', 'S', 'L', 'V', 'F'];
+            if (shiftToday !== '-' && !knownShifts.includes(shiftToday)) {
+                showAlert(`Turno "${shiftToday}" no configurado. Sumará 0h.`);
+            } else {
+                hideAlert();
+            }
+
+            // Days Until Off with visual dots
+            let daysUntilOff = 0;
+            let dateIdx = datesList.indexOf(dateStr) + 1;
+            let foundOff = false;
+            const maxDots = 7;
+            const dotsContainer = document.getElementById('countdownDots');
+            dotsContainer.innerHTML = '';
+
+            while (dateIdx < datesList.length && daysUntilOff < maxDots) {
+                daysUntilOff++;
+                const futureShift = getShiftCode(user, datesList[dateIdx]);
+                const isOff = ['L', 'V', 'F'].includes(futureShift);
+
+                const dot = document.createElement('div');
+                dot.className = `countdown-dot w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300 ${
+                    isOff 
+                        ? 'bg-emerald-500 text-white scale-110 shadow-lg shadow-emerald-500/30' 
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                }`;
+                dot.textContent = daysUntilOff;
+                dotsContainer.appendChild(dot);
+
+                if (isOff) {
+                    foundOff = true;
+                    break;
+                }
+                dateIdx++;
+            }
+
+            document.getElementById('daysUntilOff').textContent = foundOff ? `${daysUntilOff} días` : 'Fin de datos';
+
+            // Hours
+            calculateHoursUI(user, dateStr);
+
+            // Teams
+            updateTeamsUI(user, dateStr, shiftToday);
+        }
+
+        function calculateHoursUI(user, dateStr) {
+            const selectedDate = new Date(dateStr);
+            const month = selectedDate.getMonth();
+            const year = selectedDate.getFullYear();
+
+            const dayOfWeek = selectedDate.getDay();
+            const diffToMonday = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+            const startOfWeek = new Date(selectedDate.setDate(diffToMonday));
+
+            let weeklyHours = 0;
+            let monthlyHours = 0;
+
+            datesList.forEach(dStr => {
+                const d = new Date(dStr);
+                const shiftCode = getShiftCode(user, dStr);
+
+                const prevD = new Date(d);
+                prevD.setDate(prevD.getDate() - 1);
+                const prevDateStr = prevD.toISOString().split('T')[0];
+                const prevShiftCode = getShiftCode(user, prevDateStr);
+
+                const hours = getShiftHours(shiftCode, prevShiftCode);
+
+                if (d.getMonth() === month && d.getFullYear() === year) {
+                    monthlyHours += hours;
+                }
+
+                const timeDiff = d.getTime() - startOfWeek.getTime();
+                const daysDiff = timeDiff / (1000 * 3600 * 24);
+                if (daysDiff >= 0 && daysDiff <= 6) {
+                    weeklyHours += hours;
+                }
+            });
+
+            animateValue('weeklyHours', parseInt(document.getElementById('weeklyHours').textContent) || 0, weeklyHours, 600);
+            animateValue('monthlyHours', parseInt(document.getElementById('monthlyHours').textContent) || 0, monthlyHours, 600);
+
+            // Progress bars
+            document.getElementById('weeklyBar').style.width = `${Math.min((weeklyHours / 40) * 100, 100)}%`;
+            document.getElementById('monthlyBar').style.width = `${Math.min((monthlyHours / 160) * 100, 100)}%`;
+        }
+
+        function updateTeamsUI(user, dateStr, myShift) {
+            const sameList = document.getElementById('sameShiftList');
+            const oppList = document.getElementById('oppShiftList');
+            const nightList = document.getElementById('nightShiftList');
+            const offList = document.getElementById('offList');
+
+            sameList.innerHTML = '';
+            oppList.innerHTML = '';
+            nightList.innerHTML = '';
+            offList.innerHTML = '';
+            document.getElementById('sameShiftLabel').textContent = myShift;
+
+            let oppositeCode = myShift === 'M' ? 'T' : (myShift === 'T' ? 'M' : 'N/A');
+
+            const colleagues = Object.keys(scheduleData).filter(c => c !== user);
+
+            colleagues.forEach(colleague => {
+                const cShift = getShiftCode(colleague, dateStr);
+                const cConfig = shiftConfig[cShift] || { color: '#9ca3af', bg: 'bg-gray-400' };
+                const initials = getInitials(colleague);
+
+                if (cShift === myShift) {
+                    // Same shift = horizontal chips
+                    const chip = document.createElement('div');
+                    chip.className = 'flex-shrink-0 flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 rounded-2xl px-3 py-2';
+                    chip.innerHTML = `
+                        <div class="w-8 h-8 rounded-full ${cConfig.bg} flex items-center justify-center text-white text-xs font-bold">${initials}</div>
+                        <span class="text-xs font-semibold whitespace-nowrap">${colleague}</span>
+                    `;
+                    sameList.appendChild(chip);
+                }
+
+                if (cShift === oppositeCode) {
+                    oppList.innerHTML += createTeamRow(colleague, cShift, cConfig, true);
+                }
+
+                if (cShift === 'N') {
+                    nightList.innerHTML += createTeamRow(colleague, cShift, cConfig, false);
+                }
+
+                if (['L', 'V', 'F', 'S'].includes(cShift)) {
+                    offList.innerHTML += createTeamRow(colleague, cShift, cConfig, false);
+                }
+            });
+
+            // Empty states
+            if (sameList.innerHTML === '') {
+                sameList.innerHTML = `<div class="flex items-center gap-2 text-gray-400 text-xs py-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Solo hoy</div>`;
+            }
+            if (oppList.innerHTML === '') {
+                oppList.innerHTML = `<div class="flex items-center gap-2 text-gray-400 text-xs py-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>No aplica / Nadie</div>`;
+            }
+            if (nightList.innerHTML === '') {
+                nightList.innerHTML = `<div class="flex items-center gap-2 text-gray-400 text-xs py-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>Nadie de noche</div>`;
+            }
+            if (offList.innerHTML === '') {
+                offList.innerHTML = `<div class="flex items-center gap-2 text-gray-400 text-xs py-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Todos trabajando</div>`;
+            }
+        }
+
+        function createTeamRow(name, shift, config, showSwap) {
+            const initials = getInitials(name);
+            return `
+                <div class="team-row flex items-center gap-3 p-2 rounded-xl cursor-default">
+                    <div class="w-9 h-9 rounded-full ${config.bg} flex items-center justify-center text-white text-xs font-bold flex-shrink-0">${initials}</div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold truncate">${name}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold px-2 py-0.5 rounded-md ${config.light} ${config.dark} ${config.text}">${shift}</span>
+                        ${showSwap ? `<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        let alertTimeout;
+        function showAlert(msg) {
+            const banner = document.getElementById('alertBanner');
+            const text = document.getElementById('alertText');
+            text.textContent = msg;
+            banner.classList.remove('hidden', 'toast-exit');
+            banner.classList.add('toast-enter');
+
+            clearTimeout(alertTimeout);
+            alertTimeout = setTimeout(() => {
+                banner.classList.remove('toast-enter');
+                banner.classList.add('toast-exit');
+                setTimeout(() => banner.classList.add('hidden'), 300);
+            }, 4000);
+        }
+
+        function hideAlert() {
+            const banner = document.getElementById('alertBanner');
+            if (!banner.classList.contains('hidden')) {
+                banner.classList.remove('toast-enter');
+                banner.classList.add('toast-exit');
+                setTimeout(() => banner.classList.add('hidden'), 300);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
